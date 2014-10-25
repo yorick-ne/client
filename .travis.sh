@@ -1,11 +1,7 @@
 #!/bin/sh
 
-# Install libgit2 from ubuntu vivid repos
-apt_repo="
-deb http://archive.canonical.com/ubuntu vivid banana
-deb-src http://archive.canonical.com/ubuntu vivid banana
-"
-sudo echo $apt_repo >> "/etc/apt/sources.list"
+# Install libgit2 from untrusted source ppa
+sudo add-apt-repository ppa:xav0989/libgit2 -y -q
 
 sudo apt-get update -q && echo "apt-get caches updated"
 
