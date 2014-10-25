@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Install libgit2 from untrusted source ppa
-sudo add-apt-repository ppa:xav0989/libgit2 -y
+sudo add-apt-repository "deb http://ubuntu-archive.mirror.nucleus.be/ utopic main"
+sudo add-apt-repository "deb-src http://ubuntu-archive.mirror.nucleus.be/ utopic main"
 
 sudo apt-get update -q &> /dev/null && echo "apt-get caches updated."
 
@@ -13,4 +14,6 @@ fi
 pip install -q cffi && echo "Installed cffi."
 sudo apt-get install -q libgit2-dev python-qt4 > /dev/null \
 	&& echo "Installed libgit2-dev python-qt4"
+
+
 
