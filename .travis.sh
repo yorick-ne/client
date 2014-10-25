@@ -7,15 +7,19 @@ pushd
 
 cd ~
 
-git clone --depth=1 -b v0.21.1 https://github.com/libgit2/libgit2.git
-cd libgit2/
+# Install libgit2 from ubuntu vivid repos
+apt_repo="
+deb http://archive.canonical.com/ubuntu vivid banana
+deb-src http://archive.canonical.com/ubuntu vivid banana"
+sudo echo $apt_repo >> "/etc/apt/sources.list"
 
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=../_install -DBUILD_CLAR=OFF
-cmake --build . --target install
+sudo apt-get update
 
-ls -la ..
+if [[ $? != 0 ]]; then
+	echo "apt-get update failed." > /dev/fd/2
+	exit 1
+fi
 
-popd
+sudo apt-get install libgit2-dev
 
 sudo apt-get install python-qt4
