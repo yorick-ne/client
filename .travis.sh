@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Install libgit2 from untrusted source ppa
-sudo add-apt-repository ppa:xav0989/libgit2 -y -q
+sudo add-apt-repository ppa:xav0989/libgit2 -y
 
 sudo apt-get update -q && echo "apt-get caches updated"
 
