@@ -19,12 +19,12 @@ cd banana
 wget "https://launchpad.net/ubuntu/+source/libgit2/0.21.1-1/+build/6494190/+files/libgit2-21_0.21.1-1_amd64.deb"
 wget "https://launchpad.net/ubuntu/+source/libgit2/0.21.1-1/+build/6494190/+files/libgit2-dev_0.21.1-1_amd64.deb"
 
-sudo dpkg -q -i "libgit2-21_0.21.1-1_amd64.deb"
-sudo dpkg -q -i "libgit2-dev_0.21.1-1_amd64.deb"
+sudo dpkg -i "libgit2-21_0.21.1-1_amd64.deb"
+sudo dpkg -i "libgit2-dev_0.21.1-1_amd64.deb"
 
 pip install -q cffi && echo "Installed cffi."
 sudo apt-get install -q python-qt4 > /dev/null \
-	&& echo "Installed python-qt4"
+	&& echo "Installed python-qt4" \
 	|| exit 1
 
 
