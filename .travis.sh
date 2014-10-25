@@ -28,4 +28,4 @@ sudo apt-get install -q python-qt4 > /dev/null \
 	|| exit 1
 
 
-apt-show-versions cffi libgit2-dev python-qt4
+dpkg -s cffi libgit2-dev python-qt4 | grep 'Version'
