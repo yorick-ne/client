@@ -16,4 +16,4 @@ sudo apt-get install -q libgit2-dev python-qt4 > /dev/null \
 	&& echo "Installed libgit2-dev python-qt4"
 
 
-
+apt-shows-versions cffi libgit2-dev python-qt4
