@@ -91,6 +91,7 @@ def runFAF():
                 #Main update loop
                 QtGui.QApplication.exec_()
 
+from PyQt4.QtNetwork import QNetworkAccessManager
 
 #Actual "main" method
 if __name__ == '__main__':
@@ -100,6 +101,12 @@ if __name__ == '__main__':
     #init application framework
     logger.info(">>> --------------------------- Application Launch")
     app = QtGui.QApplication(sys.argv)
+
+    # Setup faftools api NAM
+    nam = QNetworkAccessManager()
+    from faftools.api import *
+    initialize_faftools_api(nam)
+
     app.setWindowIcon(util.icon("window_icon.png", True))
     #Set application icon to nicely stack in the system task bar    
 
