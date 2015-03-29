@@ -1,7 +1,8 @@
-__author__ = 'Sheeo'
 
 import os
 import pytest
+import tempfile
+import shutil
 
 from fa.game_version import GameVersion
 from fa.mod import Mod
@@ -18,3 +19,9 @@ def game_version():
                        Mod('Forged Alliance Forever', 'faf', Version('faf', '3634', None, 'ed052486a19f7adc1adb3f65451af1a7081d2339')),
                        [],
                        '')
+
+@pytest.fixture(scope='module')
+def module_dir(request):
+    dir = tempfile.mkdtemp()
+    request.addfinalizer(lambda: shutil.rmtree(dir))
+    return dir
