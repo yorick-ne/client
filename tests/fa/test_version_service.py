@@ -3,13 +3,13 @@ import fa.version_service
 from fa.version_service import VersionService
 
 from flexmock import flexmock
-from faftools.api.irestservice import IRESTService
+from faftools.api.restservice import RestService
 
 __author__ = 'Sheeo'
 
 network_manager = flexmock()
 signal_mock = flexmock(connect=lambda func: True)
-restmock = flexmock(IRESTService)
+restmock = flexmock(RestService)
 rest_response_mock = flexmock(done=signal_mock, error=signal_mock)
 
 

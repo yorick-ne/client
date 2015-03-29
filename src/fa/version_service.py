@@ -1,4 +1,4 @@
-from faftools.api.irestservice import IRESTService
+from faftools.api.restservice import RestService
 from faftools.api import *
 
 __author__ = 'Sheeo'
@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class VersionService(IRESTService):
+class VersionService(RestService):
     """
     Service to get available versions for mods, maps etc.
 
