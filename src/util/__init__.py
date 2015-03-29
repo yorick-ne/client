@@ -511,6 +511,16 @@ def wait(until):
 
     return not progress.wasCanceled()
 
+from PyQt4.QtCore import QEventLoop
+
+def waitForSignals(*signals):
+    "Waits until one of the given signals fire."
+    loop = QEventLoop()
+
+    for signal in signals:
+        signal.connect(loop.exit)
+
+    loop.exec_()
 
 def openInExplorer(location):
     '''
@@ -639,5 +649,18 @@ def now():
 
 from crash import CrashDialog
 from report import ReportDialog
+
+
+from contextlib import contextmanager
+
+@contextmanager
+def work_dir(path):
+    "Manages a temporary working directory change."
+    last_path = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(last_path)
 
     
