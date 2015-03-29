@@ -16,185 +16,168 @@
 # GNU General Public License for more details.
 #-------------------------------------------------------------------------------
 
-from git import Repository
-
-__author__ = 'Thygrrr'
-
-
-from PyQt4 import QtGui, QtCore
 import os
-import util
 import bsdiff4
 import shutil
-import sys
-import json
 import logging
-import hashlib
+from hashlib import sha256
+from base64 import b64decode
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-REPO_NAME = "binary-patch"
-REPO_URL = "https://github.com/FAForever/binary-patch.git"
-
-from util import settings
+import util
+from util import settings, work_dir
 
 class PatchFailedError(StandardError):
     pass
 
-def make_counter(start=0):
-    _closure={"count":start}
-    def f(jump=1):
-        _closure['count'] += jump
-        return _closure['count']
-    return f
+from faftools.api import *
 
-
-class Updater(QtCore.QObject):
-    progress_reset = QtCore.pyqtSignal()
-    progress_value = QtCore.pyqtSignal(int)
-    progress_maximum = QtCore.pyqtSignal(int)
-    progress_log = QtCore.pyqtSignal(str)
-    failed = QtCore.pyqtSignal(str)
-    finished = QtCore.pyqtSignal()
-
-    def __init__(self, repo, parent=None):
-        QtCore.QObject.__init__(self, parent)
-        self.repo = repo
-
+class PatchService(RestService):
+    @staticmethod
+    def GetPatch(from_exe_hash, to_commit_hash):
+        return RestService._post(PATCH_SERVICE_URL + "/get-patch",
+                          {'from_exe_hash': from_exe_hash,
+                           'to_commit_hash': to_commit_hash})
 
     @staticmethod
-    def guess_install_type(game_path):
-        return 'steam' if os.path.isfile(os.path.join(game_path, "steam_api.dll")) else 'retail'
+    def Verify(exe_hash, version_hash):
+        return RestService._post(PATCH_SERVICE_URL + "/verify",
+            { 'a': exe_hash, 'b': version_hash })
 
-
-    def copy_rename(self, copy_rename, source_path, destination_path=util.BIN_DIR):
-        count = make_counter()
-        self.prepare_progress("Copying Files", len(copy_rename))
-
-        if not os.path.exists(destination_path):
-            shutil.mkdirs(destination_path)
-
-        for source_name, destination_name in copy_rename.iteritems():
-            logger.info("Copying " + os.path.join(source_path, source_name))
-            shutil.copyfile(os.path.join(source_path, source_name), os.path.join(destination_path, destination_name or source_name))
-            self.progress_value.emit(count())
-            QtGui.QApplication.processEvents()
-
-    def log(self, text):
-        self.progress_log.emit("Game: " + text)
-        logger.info(text)
-
-
-    def prepare_progress(self, operation, maximum=0):
-        self.log(operation)
-        self.progress_maximum.emit(maximum)
-        self.progress_reset.emit()
-        QtGui.QApplication.processEvents()
-
-
-    def patch_directory_contents(self, post_patch_verify, patch_data_directory=os.path.join(util.REPO_DIR, REPO_NAME, "bsdiff4"), bin_dir=util.BIN_DIR):
-        count = make_counter()
-        self.prepare_progress("Patching Install", len(post_patch_verify))
-
-        for file_name, expected_md5 in post_patch_verify.iteritems():
-            with open(os.path.join(bin_dir, file_name), "rb+") as source_file:
-                file_data = source_file.read()
-                file_md5 = hashlib.md5(file_data).hexdigest()
-
-                patch_name = os.path.join(patch_data_directory, file_md5)
-                if os.path.isfile(os.path.join(patch_data_directory, file_md5)):
-                    logger.info("Patching " + file_name)
-
-                    # Workaround, 2014-10-02
-                    # We cannot use file_patch_inplace here because it has a bug
-                    # See: https://github.com/ilanschnell/bsdiff4/pull/5
-
-                    # bsdiff4.file_patch_inplace(file_name, patch_name)
-
-                    with open(patch_name, "rb") as patch_file:
-                        patched_data = bsdiff4.patch(file_data, patch_file.read())
-                        file_md5 = hashlib.md5(patched_data).hexdigest()
-
-                    source_file.seek(0)
-                    source_file.write(patched_data)
-
-                    source_file.truncate()
-
-            if file_md5 == expected_md5:
-                logger.info("Verified: " + file_name + " OK")
-            else:
-                logger.error(file_name + " checksum mismatch after patching, " + file_md5 + " != " + expected_md5 + " (expected)")
-                raise PatchFailedError("MD5 mismatch for " + file_name)
-
-            self.progress_value.emit(count())
-            QtGui.QApplication.processEvents()
-
-
-    def verify_directory_contents(self, post_patch_verify, bin_dir=util.BIN_DIR):
-        count = make_counter()
-        self.prepare_progress("Verifying Install", len(post_patch_verify))
-
-        okay = True
-        logger.info("Verifying bin directory " + bin_dir)
+def get_current_version():
+    "Gets the stored version hash"
+    with work_dir(util.BIN_DIR):
         try:
-            for file_name, expected_md5 in post_patch_verify.iteritems():
-                with open(os.path.join(bin_dir, file_name), "rb+") as source_file:
-                    file_data = source_file.read()
-                    file_md5 = hashlib.md5(file_data).hexdigest()
-
-                if file_md5 == expected_md5:
-                    logger.debug(file_name + " OK")
-                else:
-                    logger.warn(file_name + " checksum mismatch, " + file_md5 + " != " + expected_md5 + " (expected)")
-                    okay  = False
-
-                self.progress_value.emit(count())
-                QtGui.QApplication.processEvents()
-
-            for existing_file in os.listdir(bin_dir):
-                if not existing_file in post_patch_verify:
-                    logger.warn(existing_file + " is not in verify list.")
-
-        except StandardError, err:
-            logger.error("Error verifying files: " + str(err))
-            okay = False
-
-        return okay
+            with open('version.txt', 'rb') as ver_file:
+                return ver_file.read().strip()
+        except IOError:
+            # File does not exist
+            return None
 
 
-    def patch_forged_alliance(self, game_path):
-        with open(os.path.join(util.REPO_DIR, "binary-patch", Updater.guess_install_type(game_path) + ".json")) as json_file:
-            migration_data = json.loads(json_file.read())
+def init_bin():
+    "Initializes FAForever bin with files from settings-pointed FA game directory."
 
-        self.copy_rename(migration_data['pre_patch_copy_rename'], game_path)
-        self.patch_directory_contents(migration_data['post_patch_verify'])
+    log.debug('Initializing bin directory.')
 
+    with work_dir(util.BIN_DIR):
+        files = [
+            'BsSndRpt.exe',  # -v BugSplat Files
+            'BugSplat.dll',  #  |
+            'BugSplatRc.dll',#  |
+            'DbgHelp.dll',   # -^
 
-    def check_up_to_date(self, game_path, bin_dir=util.BIN_DIR):
-        if not os.path.exists(bin_dir):
-            return False
+            'msvcm80.dll',       # -v MSVC80 Files
+            'msvcp80.dll',
+            'msvcr80.dll',
+            'wxmsw24u-vs80.dll', # -^
 
-        with open(os.path.join(util.REPO_DIR, "binary-patch", Updater.guess_install_type(game_path) + ".json")) as json_file:
-            migration_data = json.loads(json_file.read())
+            'SHSMP.DLL',   # -v Extra Files
+            'sx32w.dll',
+            'zlibwapi.dll',
+            'splash.png'  # -^
+        ]
 
-        return self.verify_directory_contents(migration_data['post_patch_verify'])
+        game_path = os.path.join(str(settings.value("ForgedAlliance/app/path", type=str)), "bin")
 
+        for file in files:
+            shutil.copyfile(os.path.join(game_path, file), file)
 
-    @QtCore.pyqtSlot()
-    def run(self):
-        self.prepare_progress("Checking out Git Repository")
+        if os.path.isfile(os.path.join(game_path, "steam_api.dll")):
+            # Steam version
+            shutil.copyfile(os.path.join(game_path, 'SupremeCommander.exe'), 'ForgedAllianceForever.exe')
+        else:
+            # Assume retail
+            shutil.copyfile(os.path.join(game_path, 'ForgedAlliance.exe'), 'ForgedAllianceForever.exe')
 
-        self.repo.fetch()
-        self.repo.checkout()
+def patch_engine(to_hash):
+    "Assumes engine needs patching."
+    with work_dir(util.BIN_DIR):
+        with open('ForgedAllianceForever.exe', 'r+b') as exe_file:
+            exe_data = exe_file.read()
+            exe_file.seek(0)
+            exe_hash = sha256(exe_data).hexdigest()[:32]
 
-        gamepath = os.path.join(str(settings.value("ForgedAlliance/app/path", type=str)), "bin")
+            def error(code, message):
+                raise PatchFailedError(code, message)
 
-        if not self.check_up_to_date(gamepath):
-            logger.info("Updated bin directory required.")
-            self.prepare_progress("Creating fresh install.")
-            try:
-                self.patch_forged_alliance(gamepath)
-            except PatchFailedError, pfe:
-                self.failed.emit(str(pfe))
+            def done(data):
+                exe_data_ = exe_data
 
-        self.finished.emit()
+                for patch in data['patch_list']:
+                    patch_bin = b64decode(patch)
+
+                    exe_data_ = bsdiff4.patch(exe_data_, patch_bin)
+
+                new_hash = sha256(exe_data_).hexdigest()[:32]
+
+                if new_hash != data['hash_check']:
+                    raise PatchFailedError('Post-patching hash check failed.')
+
+                exe_file.write(exe_data_)
+
+            patch_req = PatchService.GetPatch(exe_hash, to_hash)
+            patch_req.error.connect(error)
+            patch_req.done.connect(done)
+
+            util.waitForSignals(patch_req.error, patch_req.done)
+
+        with open('version.txt', 'wb') as ver_file:
+            ver_file.write(to_hash)
+
+def verify_engine():
+    "Verifies engine hash against stored engine version."
+
+    with work_dir(util.BIN_DIR):
+
+        # Hash the engine
+        with open('ForgedAllianceForever.exe', 'rb') as exe_file:
+            exe_hash = sha256(exe_file.read()).hexdigest()[:32]
+
+        # Get the stored version hash
+        with open('version.txt', 'rb') as ver_file:
+            ver_hash = ver_file.read().strip()
+
+        ret = []
+        def error(code, message):
+            ret.append(False)
+
+        def done(data):
+            ret.append(True)
+
+        verify_req = PatchService.Verify(exe_hash, ver_hash)
+        verify_req.error.connect(error)
+        verify_req.done.connect(done)
+
+        util.waitForSignals(verify_req.error, verify_req.done)
+
+        return ret[0]
+
+def update_engine(to_hash):
+    "Updates/verifies the engine executable to a specific git hash version."
+
+    try:
+        if not os.path.exists(util.BIN_DIR):
+            os.mkdir(util.BIN_DIR)
+            current_version = None
+        else:
+            current_version = get_current_version()
+
+        if current_version is None:
+            init_bin()
+            current_version = 'unknown'
+
+        if current_version == to_hash:
+            log.info("Updating Engine to %s => Verifying", to_hash)
+            if not verify_engine():
+                # Engine verification failed, likely something corrupted/fiddled with
+                init_bin()
+                patch_engine(to_hash)
+        else:
+            log.info("Updating Engine to %s => Patching", to_hash)
+            patch_engine(to_hash)
+    except Exception as e:
+        log.exception("Updating Engine failed: %s",e)
+    else:
+        log.info('Successfully updated engine.')

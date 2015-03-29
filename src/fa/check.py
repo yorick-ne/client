@@ -26,8 +26,9 @@ from fa.mods import checkMods
 from fa.path import writeFAPathLua, validatePath
 from fa.wizards import Wizard
 from fa.game_version import GameVersion
-from fa.binary import Updater
 from git import Repository
+
+import fa
 
 import mods
 import fa.path
@@ -93,18 +94,11 @@ def game(parent, game_version):
         logger.info("Untrusted repositories")
         # TODO: Show some dialog here
 
-    engine_repo = game_version.engine_repo
-    if not engine_repo.has_version(game_version.engine):
+    if fa.binary.get_current_version() != game_version.engine.hash:
         logger.info("We don't have the required engine version")
         logger.debug("Requested version %s" % game_version.engine)
         logger.debug("Repo: %s" % game_version.engine_repo.path)
-        return False
-    else:
-        engine_repo.checkout_version(game_version.engine)
-        updater = Updater(engine_repo, parent)
-        game_path = os.path.join(fa.path.getGameFolderFA(), 'bin')
-        if not updater.check_up_to_date(game_path):
-            updater.patch_forged_alliance(os.path.join(fa.path.getGameFolderFA(), 'bin'))
+        fa.binary.update_engine(game_version.engine.hash)
 
     main_mod_repo = game_version.main_mod_repo
     if not main_mod_repo.has_version(game_version.main_mod.version):

@@ -1,130 +1,124 @@
-from PyQt4.QtCore import pyqtSlot
-from PyQt4 import QtCore
+from PyQt4.QtCore import QObject, pyqtSignal, QTimer
 
 import bsdiff4
 import pytest
 import os
-import pygit2
-from fa import binary
+import fa
+import random
+import util
+from util import work_dir
+from mock import patch
+from base64 import b64encode
+import shutil
+
+from hashlib import sha256
+
+def randstr():
+    return "%6x" % random.randint(0,0xFFFFFF)
+
+retail_bin = None
+faf_bin = None
+
+@pytest.fixture(scope='module')
+def fake_retail_bin(module_dir):
+    files = [
+        'BsSndRpt.exe',  # -v BugSplat Files
+        'BugSplat.dll',  #  |
+        'BugSplatRc.dll',#  |
+        'DbgHelp.dll',   # -^
+
+        'msvcm80.dll',       # -v MSVC80 Files
+        'msvcp80.dll',
+        'msvcr80.dll',
+        'wxmsw24u-vs80.dll', # -^
+
+        'SHSMP.DLL',   # -v Extra Files
+        'sx32w.dll',
+        'zlibwapi.dll',
+        'splash.png'  # -^
+    ]
+
+    random.seed()
+    global retail_bin
+    retail_bin = module_dir + '/retail'
+    os.mkdir(retail_bin)
+    os.mkdir(retail_bin + '/bin')
+
+    with work_dir(retail_bin + '/bin'):
+        for file in files:
+            with open(file, 'wb') as f:
+                f.write(randstr())
+
+        with open('ForgedAlliance.exe', 'wb') as f:
+            f.write(b'Nobody expects the spanish inquisition.')
+
+    return retail_bin
+
+class FakeResponse(QObject):
+
+    error = pyqtSignal(int, object)
+    done = pyqtSignal(object)
+
+    def __init__(self, data, error_code=None):
+        super(FakeResponse,self).__init__()
+        self.data = data
+        self.error_code=error_code
+
+        QTimer.singleShot(0, self.finish)
+
+    def finish(self):
+        if self.error_code:
+            self.error.emit(self.error_code, self.data)
+        else:
+            self.done.emit(self.data)
+
+@staticmethod
+def mock_get_patch(from_hash, to_hash):
+
+    patch = b64encode( bsdiff4.diff(b'Nobody expects the spanish inquisition.',
+                 b'NOBODY!') )
+
+    hash_check = sha256(b'NOBODY!').hexdigest()[:32]
+
+    return FakeResponse({'patch_list':[patch], 'hash_check': hash_check})
+
+@staticmethod
+def mock_verify(a, b):
+    return FakeResponse(True)
+
+@pytest.fixture(scope='module')
+def fake_client(module_dir):
+    global faf_bin
+    faf_bin = module_dir + '/faf_bin'
+    os.mkdir(faf_bin)
 
 
-__author__ = 'Thygrrr'
+pytestmark = pytest.mark.usefixtures("fake_retail_bin", "fake_client")
 
-def test_updater_has_method_run(application):
-    updater = binary.Updater(application)
-    assert callable(updater.run)
+from contextlib import contextmanager
 
+@contextmanager
+def CONTEXT_EVERYTHING():
+    with patch.object(fa.binary.PatchService, 'GetPatch', mock_get_patch):
+        with patch.object(fa.binary.PatchService, 'Verify', mock_verify):
+            with patch.object(util, 'BIN_DIR', faf_bin):
+                with patch.object(util.settings, 'value', lambda x,**kwargs: retail_bin):
+                    yield
 
-def test_copy_rename_copies_all_files(tmpdir, application):
-    source_dir = tmpdir.mkdir("source")
-    dest_dir = tmpdir.mkdir("dest")
+def test_update(application):
+    with CONTEXT_EVERYTHING():
+        shutil.rmtree(faf_bin)
+        os.mkdir(faf_bin)
 
-    source_dir.join("a").write("a")
-    source_dir.join("b").write("b")
+        fa.binary.update_engine('something')
 
-    copy_table = {"a":None, "b":None}
+def test_patch(application):
+    with CONTEXT_EVERYTHING():
+        fa.binary.init_bin()
+        fa.binary.patch_engine('something')
 
-    updater = binary.Updater(application)
-    updater.copy_rename(copy_table, str(source_dir), str(dest_dir))
-    assert dest_dir.join("a").exists()
-    assert dest_dir.join("b").exists()
-
-
-def test_copy_rename_renames_files(tmpdir, application):
-    source_dir = tmpdir.mkdir("source")
-    dest_dir = tmpdir.mkdir("dest")
-
-    source_dir.join("a").write("aaa")
-
-    copy_table = {"a":"b"}
-
-    updater = binary.Updater(application)
-    updater.copy_rename(copy_table, str(source_dir), str(dest_dir))
-    assert dest_dir.join("b").exists()
-    assert dest_dir.join("b").read() == "aaa"
-
-
-def test_copy_rename_emits_all_progress_updates(tmpdir, application, signal_receiver):
-    source_dir = tmpdir.mkdir("source")
-    dest_dir = tmpdir.mkdir("dest")
-
-    source_dir.join("a").write("aaa")
-    source_dir.join("b").write("bbb")
-
-    copy_table = {"a":None, "b":None}
-
-    updater = binary.Updater(application)
-    updater.progress_value.connect(signal_receiver.int_slot)
-    updater.copy_rename(copy_table, str(source_dir), str(dest_dir))
-
-    assert signal_receiver.int_values[0] == 1
-    assert signal_receiver.int_values[1] == 2
-
-
-def test_copy_rename_emits_correct_number_of_progress_updates(tmpdir, application, signal_receiver):
-    source_dir = tmpdir.mkdir("source")
-    dest_dir = tmpdir.mkdir("dest")
-
-    source_dir.join("a").write("aaa")
-
-    copy_table = {"a":None}
-
-    updater = binary.Updater(application)
-    updater.progress_value.connect(signal_receiver.int_slot)
-    updater.copy_rename(copy_table, str(source_dir), str(dest_dir))
-
-    assert len(signal_receiver.int_values) == 1
-
-
-def test_guess_install_guesses_steam_if_steam_dll_exists(tmpdir):
-    tmpdir.join("steam_api.dll").write("I'm steam!")
-    assert binary.Updater.guess_install_type(str(tmpdir)) == 'steam'
-
-
-def test_guess_install_guesses_retail_if_no_steam_dll_exists(tmpdir):
-    assert binary.Updater.guess_install_type(str(tmpdir)) == 'retail'
-
-
-def test_patch_directory_contents_patches_files(tmpdir, application):
-    import hashlib
-    tmpdir.join("a").write("aaa")
-    patchdir = tmpdir.mkdir("patchdir")
-    patchdir.join(hashlib.md5("aaa").hexdigest()).write(bsdiff4.diff("aaa", "PATCHED"), "wb")
-    post_patch_verify = {"a": hashlib.md5("PATCHED").hexdigest()}
-    updater = binary.Updater(application)
-    updater.patch_directory_contents(post_patch_verify, str(patchdir), str(tmpdir))
-    assert tmpdir.join("a").read() == "PATCHED"
-
-
-def test_patch_directory_contents_raises_patch_failed_on_signature_mismatch(tmpdir, application):
-    with pytest.raises(binary.PatchFailedError):
-        import hashlib
-        tmpdir.join("a").write("aaa")
-        patchdir = tmpdir.mkdir("patchdir")
-        patchdir.join(hashlib.md5("aaa").hexdigest()).write(bsdiff4.diff("aaa", "PATCHED"), "wb")
-        post_patch_verify = {"a": hashlib.md5("won't match").hexdigest()}
-        updater = binary.Updater(application)
-        updater.patch_directory_contents(post_patch_verify, str(patchdir), str(tmpdir))
-
-
-def test_patch_directory_contents_does_not_touch_files_without_patch(tmpdir, application):
-    import hashlib
-    tmpdir.join("a").write("aaa")
-    patchdir = tmpdir.mkdir("patchdir")
-    patchdir.join(hashlib.md5("bbb").hexdigest()).write(bsdiff4.diff("bbb", "PATCHED"), "wb")
-    post_patch_verify = {"a": hashlib.md5("aaa").hexdigest()}
-    updater = binary.Updater(application)
-    updater.patch_directory_contents(post_patch_verify, str(patchdir), str(tmpdir))
-    assert tmpdir.join("a").read() == "aaa"
-
-
-def test_patch_directory_contents_raises_patch_failed_on_mismatching_untouched_file(tmpdir, application):
-    with pytest.raises(binary.PatchFailedError):
-        import hashlib
-        tmpdir.join("a").write("aaa")
-        patchdir = tmpdir.mkdir("patchdir")
-        post_patch_verify = {"a": hashlib.md5("won't match").hexdigest()}
-        updater = binary.Updater(application)
-        updater.patch_directory_contents(post_patch_verify, str(patchdir), str(tmpdir))
-
+def test_verify(application):
+    with CONTEXT_EVERYTHING():
+        fa.binary.update_engine('something')
+        assert fa.binary.verify_engine()
 
