@@ -14,6 +14,7 @@ Each event_type has a NsHook to customize it.
 class NotificationSystem():
     USER_ONLINE = 'user_online'
     NEW_GAME = 'new_game'
+    GAME_FULL =  'team_full'
 
     def __init__(self, client):
         self.client = client
@@ -26,6 +27,7 @@ class NotificationSystem():
         self.settings = NsSettingsDialog(self.client)
 
         self.user = util.icon("client/user.png", pix=True)
+        self.flag = util.icon("client/flag.png", pix=True)
 
     def isDisabled(self):
         return self.disabledStartup or not self.settings.enabled
@@ -94,6 +96,9 @@ class NotificationSystem():
 
             modhtml = '' if (modstr == '') else '<br><font size="-4"><font color="red">mods</font> %s</font>' % modstr
             text = '<html>%s<br><font color="silver" size="-2">on</font> %s%s</html>' % (data['title'], maps.getDisplayName(data['mapname']), modhtml)
+        elif eventType == self.GAME_FULL:
+            pixmap = self.flag
+            text = '<html>Game is full.</html>'
 
         self.dialog.newEvent(pixmap, text, self.settings.popup_lifetime, self.settings.soundEnabled(eventType))
 

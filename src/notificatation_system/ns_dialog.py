@@ -33,7 +33,7 @@ class NotficationDialog(FormClass, BaseClass):
         """ Called to display a new popup
         Keyword arguments:
         pixmap -- Icon for the event (displayed left)
-        text- HTMl-Text of the vent (displayed right)
+        text- HTMl-Text of the event (displayed right)
         lifetime -- Display duration
         sound -- true|false if should played
         """
