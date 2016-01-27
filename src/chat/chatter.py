@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QUrl
 from PyQt4.QtNetwork import QNetworkRequest
@@ -155,10 +158,17 @@ class Chatter(QtGui.QTableWidgetItem):
             self.rankItem.setToolTip("IRC User")
             return
 
-        country = player.country
-        if country is not None:
-            self.setIcon(util.icon("chat/countries/%s.png" % country.lower()))
-            self.setToolTip(country)
+        self.country = player.country
+        if self.country is not None:
+            self.setIcon(util.icon("chat/countries/%s.png" % self.country.lower()))
+            self.setToolTip(self.country)
+            
+            if self.name == self.lobby.client.login and \
+                          self.lobby.languageChannels[self.country] is not None and \
+                          self.lobby.client.use_languageChannels:
+                self.lobby.autoJoin(self.lobby.languageChannels[self.country])
+        logger.info("country: " + str(self.country))
+                
 
         if player.avatar != self.avatar:
             self.avatar = player.avatar

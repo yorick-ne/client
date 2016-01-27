@@ -63,6 +63,11 @@ class ChatWidget(FormClass, BaseClass, SimpleIRCClient):
         self.crucialChannels = ["#aeolus"]
         self.optionalChannels = []
 
+
+        self.languageChannels = {"DE":["#german","#test"], "GB":["#english"], "FR":["#french"], "RU":["#russian"], \
+                                 "PT":["#portugese"], "BR":["#portugese"], "NL":["#dutch"], "BE":["#dutch", "#french"], \
+                                 "AU":["#english"],"US":["english"]}
+
         #We can't send command until the welcom message is received
         self.welcomed = False
 
