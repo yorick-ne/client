@@ -7,6 +7,7 @@ import os
 from games.moditem import mod_invisible, mods
 
 import client
+from client.player import Player
 import copy
 
 class GameItemDelegate(QtGui.QStyledItemDelegate):
@@ -166,7 +167,7 @@ class GameItem(QtGui.QListWidgetItem):
         self.client  = client
 
         self.title = message['title']
-        self.host = message['host']
+        self.host = self.client.players.get(message['host'], Player(-1, "Unknown Player")).login
 
         # Maps integral team numbers (from 2, with 1 "none") to lists of names.
         teams_map = dict.copy(message['teams'])
