@@ -61,12 +61,10 @@ class CoopWidget(FormClass, BaseClass):
         
         self.linkButton.clicked.connect(self.linkVanilla)
         self.leaderBoard.setVisible(0)
-        self.stylesheet              = util.readstylesheet("coop/formatters/style.css")
+        util.setStyleSheet(self.leaderBoard, "coop/formatters/style.css")
         self.FORMATTER_LADDER        = unicode(util.readfile("coop/formatters/ladder.qthtml"))
         self.FORMATTER_LADDER_HEADER = unicode(util.readfile("coop/formatters/ladder_header.qthtml"))
 
-        self.leaderBoard.setStyleSheet(self.stylesheet)
-        
         self.leaderBoardTextGeneral.anchorClicked.connect(self.openUrl)
         self.leaderBoardTextOne.anchorClicked.connect(self.openUrl)
         self.leaderBoardTextTwo.anchorClicked.connect(self.openUrl)

@@ -275,6 +275,7 @@
      <property name="title">
       <string>Theme...</string>
      </property>
+	 <addaction name="actionReloadStyleSheet"/>	 
     </widget>
     <widget class="QMenu" name="menuClear">
      <property name="title">
@@ -531,6 +532,11 @@
    <property name="text">
     <string>Save game logs</string>
    </property>
+  </action>
+  <action name="actionReloadStyleSheet">
+	<property name="text">
+	 <string> Reload Stylesheet </string>
+	</property>
   </action>
   <action name="actionColoredNicknames">
    <property name="checkable">
